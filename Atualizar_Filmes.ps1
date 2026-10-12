@@ -7172,6 +7172,61 @@ function Renewar-TokenEmMassa([switch]$SoFilmes) {
   # Batimento: avisa o painel Android que o PC esta ligado e assumiu esta
   # rodada. Enquanto o PC bater, o Android sabe que NAO deve tocar em nada.
   try { $null = Add-Pulso -Quem 'PC' } catch { }
+
+  # ---------------- TRAVA E REGRA PC x NUVEM ----------------
+  # Este mesmo script roda no PC e na nuvem (GitHub Actions), entao os dois
+  # entram por aqui. Aqui decidimos QUEM deve atualizar agora, sem os dois
+  # brigarem pelo mesmo catalogo.
+  #   - Nuvem: so atualiza se o PC estiver DESLIGADO (se o PC bateu no
+  #     quadro nas ultimas ~2h, o PC esta bem e a nuvem sai fora).
+  #   - Trava: os dois nunca trabalham ao mesmo tempo. Quem chega primeiro
+  #     segura a trava; o outro ve e sai sem mexer. A trava expira sozinha
+  #     se o dono morrer, para nao travar o sistema para sempre.
+  $script:EuSou = 'PC'
+  if ($env:NOVIPLAY_RODANDO_NA_NUVEM -eq '1') { $script:EuSou = 'Nuvem' }
+  $tenhoTrava = $true
+  try {
+    . (Join-Path $NoviplayDir 'Trava.ps1')
+    $t = Set-TravaAtiva $script:EuSou
+    if (-not $t.Pegou) {
+      $tenhoTrava = $false
+      $motivoSaida = "outro lado esta atualizando ($($t.Motivo)). Esta rodada foi cancelada para nao brigar pelo catalogo."
+      [IO.File]::AppendAllText($logPath, "[$ts] TRAVA: $motivoSaida`r`n")
+      Write-Estado 'parcial' "Rodada cancelada: $($t.Motivo)" 0 0 0 @() ''
+      if ($script:EuSou -eq 'Nuvem') {
+        Write-Host "Nuvem: nao atualizou porque $($t.Motivo)."
+      }
+      if ($watchdog) { try { Stop-Job $watchdog -ErrorAction SilentlyContinue; Remove-Job $watchdog -Force -ErrorAction SilentlyContinue } catch { } }
+      [Environment]::Exit(0)
+    } else {
+      [IO.File]::AppendAllText($logPath, "[$ts] TRAVA: esta lado pegou a trava.`r`n")
+    }
+  } catch {
+    # Se der erro ao tentar travar, NAO bloqueia a atualizacao do PC
+    # (historico: o painel nao pode parar de funcionar por causa disso).
+    [IO.File]::AppendAllText($logPath, "[$ts] TRAVA: nao deu para usar a trava: $($_.Exception.Message) - seguindo assim mesmo.`r`n")
+  }
+
+  # REGRA DA NUVEM: se o PC esta ligado e respondendo, a nuvem nao mexe.
+  if ($script:EuSou -eq 'Nuvem') {
+    try {
+      if (Test-PcLigado) {
+        $motivo = "o PC esta ligado (respondeu no quadro). A nuvem nao precisa atualizar agora."
+        [IO.File]::AppendAllText($logPath, "[$ts] REGRA: $motivo`r`n")
+        Write-Host "Nuvem: pulando - $motivo"
+        Write-Estado 'parcial' "Nuvem pulou: $motivo" 0 0 0 @() ''
+        try { Remove-Trava } catch { }
+        if ($watchdog) { try { Stop-Job $watchdog -ErrorAction SilentlyContinue; Remove-Job $watchdog -Force -ErrorAction SilentlyContinue } catch { } }
+        [Environment]::Exit(0)
+      } else {
+        Write-Host "Nuvem: PC desligado - a nuvem assume a atualizacao."
+        [IO.File]::AppendAllText($logPath, "[$ts] REGRA: PC desligado, a nuvem assume.`r`n")
+      }
+    } catch {
+      [IO.File]::AppendAllText($logPath, "[$ts] REGRA: nao deu para checar o PC: $($_.Exception.Message) - a nuvem assume.`r`n")
+    }
+  }
+
   # RENOVACAO DE LINK (01/10/2026). ENTRA PRIMEIRO, antes da busca de catalogo.
   # Antes rodava depois do Frost/Fenix/MinhaTV, e a busca de catalogo leva quase
   # uma hora: se ela travasse (aconteceu as 19:05, 55 min e contando), a
@@ -7341,6 +7396,8 @@ function Renewar-TokenEmMassa([switch]$SoFilmes) {
   } catch {
     [IO.File]::AppendAllText($logPath, "[$ts] Alerta no celular falhou: $($_.Exception.Message)`r`n")
   }
+  # Solta a trava: a rodada acabou, o outro lado pode rodar a dele.
+  try { Remove-Trava } catch { }
   if ($watchdog) { try { Stop-Job $watchdog -ErrorAction SilentlyContinue; Remove-Job $watchdog -Force -ErrorAction SilentlyContinue } catch { } }
   [Environment]::Exit(0)
 }
