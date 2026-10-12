@@ -1,0 +1,110 @@
+name: Atualizar NoviPlay
+
+# ============================================================
+# Roda a atualizacao do catalogo NoviPlay de hora em hora,
+# 24 horas por dia, nos servidores do GitHub (nao precisa do PC).
+#
+# A URL e sempre a mesma, entao quem clica em "atualizar agora"
+# no painel usa o Gist, que a TV ja consome.
+# ============================================================
+
+on:
+  schedule:
+    # A cada hora. Usei o minuto 17 de proposito: o GitHub fica mais
+    # carregado no minuto cheio (00, 01...), e assim a rodada raramente
+    # atrasa ou e descartada na fila.
+    - cron: '17 * * * *'
+  workflow_dispatch: # da para rodar na mao pela aba Actions
+
+# nunca roda duas rodadas ao mesmo tempo (evita trabalho duplicado)
+concurrency:
+  group: noviplay-atualizar
+  cancel-in-progress: false
+
+jobs:
+  atualizar:
+    # Windows de verdade: o Atualizar_Filmes.ps1 roda igual ao do PC,
+    # sem nenhuma adaptation. Em repositorio publico o GitHub nao
+    # cobra minutos, entao da para rodar de hora em hora de graca.
+    runs-on: windows-latest
+    # Margem de seguranca: a busca completa de catalogo leva ~38 min.
+    timeout-minutes: 90
+
+    steps:
+      - name: Pegar o codigo
+        uses: actions/checkout@v4
+
+      - name: Mostrar o que vamos usar
+        run: |
+          Write-Host "GitHub Actions: $${{ github.repository }}"
+          Write-Host "Rodada iniciada em: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+
+      - name: Preparar os arquivos de configuracao
+        # Os Segredos viram variaveis de ambiente. O script le essas
+        # variaveis e NAO precisa de nenhuma senha escrita no codigo.
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "$env:GITHUB_WORKSPACE\dados" | Out-Null
+
+          # O token do GitHub vai para o arquivo que o script ja usa.
+          if ($env:NOVIPLAY_GITHUB_TOKEN) {
+            $token | Out-File -FilePath "$env:GITHUB_WORKSPACE\github.np" -Encoding utf8 -NoNewline
+            Write-Host "github.np criado a partir do segredo."
+          } else {
+            Write-Host "AVISO: segredo NOVIPLAY_GITHUB_TOKEN nao definido."
+          }
+
+          # Endereco das APIs e login do Paldi vem dos Segredos.
+          $linhas = @(
+            "FS_BASE=$env:NOVIPLAY_FS_BASE",
+            "FENIX_BASE=$env:NOVIPLAY_FENIX_BASE",
+            "MTV_BASE=$env:NOVIPLAY_MTV_BASE",
+            "GIST_ID=$env:NOVIPLAY_GIST_ID",
+            "PALDI_HOST=$env:NOVIPLAY_PALDI_HOST",
+            "PALDI_USER=$env:NOVIPLAY_PALDI_USER",
+            "PALDI_PASS=$env:NOVIPLAY_PALDI_PASS"
+          )
+          $linhas | Out-File -FilePath "$env:GITHUB_WORKSPACE\config.np" -Encoding utf8
+          Write-Host "config.np criado a partir dos segredos."
+
+      - name: Baixar os dados guardados (do Gist secreto)
+        # Os arquivos de dados (channels.np, froststream.np, cache...)
+        # NAO ficam no repositorio: ficam no Gist secreto. Sem eles a
+        # atualizacao comecaria do zero e apagaria o catalogo.
+        shell: pwsh
+        run: |
+          . "$env:GITHUB_WORKSPACE\baixar_dados.ps1"
+
+      - name: Rodar a atualizacao
+        shell: pwsh
+        run: |
+          Set-Location "$env:GITHUB_WORKSPACE"
+          & "$env:GITHUB_WORKSPACE\Atualizar_Filmes.ps1" -Autoupdate
+          exit $LASTEXITCODE
+
+      - name: Gravar o resultado no quadro compartilhado
+        if: always()
+        shell: pwsh
+        run: |
+          . "$env:GITHUB_WORKSPACE\gravar_status.ps1"
+
+      - name: Salvar os dados de volta (no Gist secreto)
+        if: always()
+        shell: pwsh
+        run: |
+          . "$env:GITHUB_WORKSPACE\salvar_dados.ps1"
+
+      - name: Mostrar um resumo
+        if: always()
+        shell: pwsh
+        run: |
+          $log = "$env:GITHUB_WORKSPACE\froststream.log"
+          if (Test-Path $log) {
+            Write-Host "--- ultimas linhas do log ---"
+            Get-Content $log -Tail 12
+          }
+          $erro = "$env:GITHUB_WORKSPACE\error.log"
+          if ((Test-Path $erro) -and (Get-Item $erro).Length -gt 0) {
+            Write-Host "--- ultimas linhas do error.log ---"
+            Get-Content $erro -Tail 8
+          }
