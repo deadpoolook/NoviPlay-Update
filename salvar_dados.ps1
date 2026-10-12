@@ -42,6 +42,25 @@ $paraGravar = @{
 
 $files = @{}
 $gravados = 0
+
+# ---------------- TRAVA DE SEGURANCA ----------------
+# O channels.np e o coracao do catalogo. Se ele vier vazio ou nao
+# existir, e porque o download do gist falhou. NESSE CASO NAO salvamos
+# nada: assim um erro de rede nunca apaga o catalogo que o app esta
+# usando. Preferimos um catalogo velho a nenhum.
+$cat = Join-Path $Destino 'channels.np'
+if (-not (Test-Path -LiteralPath $cat)) {
+  Write-Host 'TRAVA: channels.np nao existe. NADA sera salvo (o catalogo esta intacto no gist).'
+  return
+}
+$tamCat = (Get-Item -LiteralPath $cat).Length
+if ($tamCat -lt 1000) {
+  Write-Host "TRAVA: channels.np veio com apenas $tamCat bytes. NADA sera salvo (o catalogo esta intacto no gist)."
+  return
+}
+$linhasCat = @(Get-Content -LiteralPath $cat -Encoding UTF8 | Where-Object { $_.Trim() })
+Write-Host "catalogo conferido: $tamCat bytes, $($linhasCat.Count) linha(s). Pode salvar."
+
 foreach ($local in $paraGravar.Keys) {
   $caminho = Join-Path $Destino $local
   if (-not (Test-Path -LiteralPath $caminho)) { continue }
