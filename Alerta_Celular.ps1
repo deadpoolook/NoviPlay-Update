@@ -79,6 +79,43 @@ function Obter-OrigemAmigavel([string]$quem) {
   }
 }
 
+# Calcula o proximo horario de rodada de um "quem".
+# O PC roda todo dia :05 e a nuvem (GitHub) todo dia :17.
+# A gente devolve sempre o horario que vem primeiro dos dois, e diz de quem e.
+function Get-ProximaRodada {
+  param([bool]$pcVivo = $true)
+  $agora = Get-Date
+
+  function Proximo([int]$min) {
+    $p = Get-Date -Year $agora.Year -Month $agora.Month -Day $agora.Day -Hour $agora.Hour -Minute $min -Second 0
+    if ($p -le $agora) { $p = $p.AddHours(1) }
+    return $p
+  }
+
+  $pNuvem = Proximo 17
+  $pPC    = Proximo 5
+
+  # Se o PC esta ligado, ele atualiza primeiro (todo dia :05). A nuvem e a
+  # rede de seguranca para quando ele estiver desligado.
+  if ($pcVivo) {
+    $quando = $pPC
+    $quem   = 'PC'
+    # A nuvem roda 12 min depois; so vale a pena citar as duas.
+    $depois = "$($pNuvem.ToString('HH:mm')) pela nuvem"
+  } else {
+    $quando = $pNuvem
+    $quem   = 'nuvem'
+    $depois = "$($pPC.ToString('HH:mm')) pelo PC"
+  }
+
+  return [PSCustomObject]@{
+    Quando = $quando
+    Quem   = $quem
+    Depois = $depois
+    Texto  = "$($quando.ToString('dd/MM HH:mm')) ($quem) | depois $depois"
+  }
+}
+
 # ============================================================
 # Funcao principal: manda o aviso.
 # Chame assim depois da rodada:
@@ -135,30 +172,28 @@ function Send-AlertaCelular {
 
   $okTudo = ($status -eq 'sucesso') -and ($num) -and ($num.SemLink -eq 0) -and ($num.Trocados -ge 0)
   if ($okTudo) {
-    $linhas += ''
     $linhas += 'Todos os links conferidos, NoviPlay no ar.'
   } elseif ($status -eq 'parcial') {
-    $linhas += ''
     $linhas += 'Ficaram titulos sem link que abra. Vale olhar.'
   }
 
+  # ---- proxima atualizacao ----
+  try {
+    $prox = Get-ProximaRodada -pcVivo ($resumo -and $resumo.pc_vivo)
+    $linhas += "Proxima: $($prox.Texto)"
+  } catch { }
+
   $corpo = $linhas -join "`n"
 
-  # ---- titulos do ntfy sao texto puro; usamos o campo Title com quebra ---
-  $payload = @{
-    topic = ($destino -replace '^https?://[^/]+/', '')
-    title = $titulo
-    message = $corpo
-    priority = $prioridade
-    tags = $(if ($status -eq 'sucesso') { 'white_check_mark' } elseif ($status -eq 'parcial') { 'warning' } else { 'x' })
-  }
-  $json = $payload | ConvertTo-Json -Compress
+  # ---- envia no formato que o ntfy entende ----
+  # Mandando JSON cru, o aplicativo mostra o texto feio no aviso. O jeito
+  # certo e mandar o TITULO no cabecalho e o resto como corpo do texto.
+  $msgCompleta = "$titulo`n$corpo"
+  $h = @{ 'Title' = $titulo; 'Priority' = "$prioridade"; 'Tags' = $icone }
 
   try {
-    $null = Invoke-RestMethod -Method Post -Uri $destino `
-              -Headers @{ 'Content-Type' = 'application/json' } `
-              -Body ([Text.Encoding]::UTF8.GetBytes($json)) `
-              -TimeoutSec 30
+    $null = Invoke-RestMethod -Method Post -Uri $destino -Headers $h `
+              -Body ([Text.Encoding]::UTF8.GetBytes($msgCompleta)) -TimeoutSec 30
     Write-Host "Alerta enviado para o celular: $titulo"
     return 'enviado'
   } catch {
@@ -176,16 +211,12 @@ if ($executadoDireto) {
     # testa com dados de mentira, sem esperar a rodada real
     $destino = Get-AlertaDestino
     if (-not $destino) { Write-Host 'Defina NOVIPLAY_NTFY_URL primeiro.'; return }
-    $p = @{
-      topic = ($destino -replace '^https?://[^/]+/', '')
-      title = 'Teste do NoviPlay'
-      message = "Quando: agora`nPC: LIGADO`n25 link(s) atualizado(s)`n`nTodos os links conferidos, NoviPlay no ar."
-      priority = 3
-      tags = 'white_check_mark'
-    }
-    $json = $p | ConvertTo-Json -Compress
+    $titulo = 'Teste do NoviPlay'
+    $corpo = "Quando: agora`nPC: LIGADO`n25 link(s) atualizado(s)`nTodos os links conferidos, NoviPlay no ar.`nProxima: $((Get-ProximaRodada -pcVivo $true).Texto)"
     try {
-      $null = Invoke-RestMethod -Method Post -Uri $destino -Headers @{ 'Content-Type'='application/json' } -Body ([Text.Encoding]::UTF8.GetBytes($json)) -TimeoutSec 30
+      $h = @{ 'Title' = $titulo; 'Priority' = '3'; 'Tags' = 'white_check_mark' }
+      $null = Invoke-RestMethod -Method Post -Uri $destino -Headers $h `
+                -Body ([Text.Encoding]::UTF8.GetBytes("$titulo`n$corpo")) -TimeoutSec 30
       Write-Host 'Teste enviado! Ve se chegou no celular.'
     } catch { Write-Host "ERRO: $($_.Exception.Message)" }
   }
