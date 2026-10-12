@@ -99,6 +99,9 @@ jobs:
         shell: pwsh
         run: |
           Set-Location "$env:GITHUB_WORKSPACE"
+          # Diz ao script que aqui e a NUVEM. Com isso ele sabe que deve
+          # sair se o PC estiver ligado (ver Trava.ps1).
+          $env:NOVIPLAY_RODANDO_NA_NUVEM = '1'
           & "$env:GITHUB_WORKSPACE\Atualizar_Filmes.ps1" -Autoupdate
           exit $LASTEXITCODE
 
