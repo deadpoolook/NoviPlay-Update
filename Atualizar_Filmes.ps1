@@ -107,6 +107,10 @@ $PaldiPass    = Get-NPConfig 'PALDI_PASS'
 # normal. O bloco try/catch garante que nunca quebra a atualizacao.
 try { . (Join-Path $NoviplayDir 'Sincronizacao.ps1') } catch { }
 
+# Barra de sincronizacao (mostra quem atualizou e a proxima rodada).
+# Depende do Sincronizacao.ps1, entao so entra se o outro carregou.
+try { if (Get-Command Get-SyncResumo -ErrorAction SilentlyContinue) { . (Join-Path $NoviplayDir 'Barra_Sincronizacao.ps1') } } catch { }
+
 function Normalize-Text([string]$s) {
   if (-not $s) { return '' }
   $formD = $s.Normalize([Text.NormalizationForm]::FormD)
@@ -4074,14 +4078,21 @@ $LblUltima.Font = New-Object System.Drawing.Font('Segoe UI', 9, [Drawing.FontSty
 $LblUltima.Location = New-Object System.Drawing.Point(16, 84)
 $LblUltima.Text = 'Ultima atualizacao automatica: nenhuma ainda'
 
+$LblSinc = New-Object System.Windows.Forms.Label
+$LblSinc.ForeColor = $ColorDim
+$LblSinc.AutoSize = $true
+$LblSinc.Font = New-Object System.Drawing.Font('Segoe UI', 9, [Drawing.FontStyle]::Bold)
+$LblSinc.Location = New-Object System.Drawing.Point(16, 106)
+$LblSinc.Text = 'Ultima: consultando quem atualizou...'
+
 $LblFalhasCap = New-Object System.Windows.Forms.Label
 $LblFalhasCap.Text = 'Nao atualizados na ultima varredura (clique p/ ver, clique TENTAR p/ refazer):'
 $LblFalhasCap.ForeColor = $ColorDim
 $LblFalhasCap.AutoSize = $true
-$LblFalhasCap.Location = New-Object System.Drawing.Point(16, 106)
+$LblFalhasCap.Location = New-Object System.Drawing.Point(16, 148)
 
 $LstFalhas = New-Object System.Windows.Forms.ListBox
-$LstFalhas.Location = New-Object System.Drawing.Point(16, 128)
+$LstFalhas.Location = New-Object System.Drawing.Point(16, 170)
 $LstFalhas.Size = New-Object System.Drawing.Size(560, 60)
 $LstFalhas.BackColor = $ColorPanel
 $LstFalhas.ForeColor = $ColorFg
@@ -5417,7 +5428,7 @@ $LblFoot.ForeColor = $ColorDim
 $LblFoot.Location = New-Object System.Drawing.Point(16, 716)
 $LblFoot.Size = New-Object System.Drawing.Size(708, 18)
 
-$Form.Controls.AddRange(@($LblTitulo,$LblSub,$LblProxima,$LblUltima,$LblFalhasCap,$LstFalhas,$BtnFalha,$TabCtl,$LblFoot))
+$Form.Controls.AddRange(@($LblTitulo,$LblSub,$LblProxima,$LblUltima,$LblSinc,$LblFalhasCap,$LstFalhas,$BtnFalha,$TabCtl,$LblFoot))
 
 # ---------------- LAYOUT (10/10/2026) ----------------
 # O painel foi desenhado para 740 px de largura e nada se mexia quando a janela
@@ -5708,6 +5719,10 @@ $script:AtualizaAgenda = {
     else { $LblProxima.Text = 'Proxima atualizacao automatica: nao agendada' }
   } catch { $LblProxima.Text = 'Proxima atualizacao automatica: indisponivel' }
   Atualiza-StatusUltima
+  # Barra de sincronizacao: mostra QUEM fez a ultima atualizacao (PC,
+  # Github ou celular) e quando sao as proximas rodadas de cada um.
+  # So e lida do gist a cada 60s, para o painel nao travar esperando a net.
+  try { Atualiza-BarraSincronizacao } catch { }
   # A fila se atualiza sozinha: se a atualizacao automatica ja pegou um
   # titulo da fila, ele some da lista em ate 1 minuto, sem clicar nada.
   Refresh-FuturoList
