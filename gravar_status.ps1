@@ -24,11 +24,24 @@ if (Test-Path -LiteralPath $arquivo) {
 }
 
 # Recorta a mensagem para caber no quadro (ficava gigante e nao ajudava).
-if ($msg.Length -gt 400) { $msg = $msg.Substring(0, 400) + '...' }
+# Guarda a versao limpa ANTES de acrescentar o "(nuvem; ...)", porque o
+# alerta do celular usa esse arquivo e nao deve mostrar esse detalhe
+# interno para o usuario.
+$msgLimpa = $msg
+if ($msgLimpa.Length -gt 400) { $msgLimpa = $msgLimpa.Substring(0, 400) + '...' }
 
 Write-Host "--- gravando o status da rodada ---"
 Write-Host "  resultado: $status | falhas: $falhas"
 Write-Host "  mensagem:  $msg"
+
+# O arquivo de estado recebe a versao LIMPA, que e a que o alerta le.
+if (Test-Path -LiteralPath $arquivo) {
+  try {
+    $e2 = Get-Content -LiteralPath $arquivo -Raw -Encoding UTF8 | ConvertFrom-Json
+    $e2.msg = $msgLimpa
+    $e2 | ConvertTo-Json -Depth 5 | Out-File -FilePath $arquivo -Encoding utf8 -NoNewline
+  } catch { }
+}
 
 try {
   . (Join-Path $PSScriptRoot 'Sincronizacao.ps1')
@@ -36,4 +49,14 @@ try {
   Write-Host "  gravado no quadro: $($r.gravou)"
 } catch {
   Write-Host "  nao deu para gravar o status: $($_.Exception.Message)"
+}
+
+# Alerta no celular: mesma mensagem que o PC mandaria, mas dizendo que
+# foi a NUVEM que atualizou. Se falhar, a rodada continua.
+try {
+  . (Join-Path $PSScriptRoot 'Alerta_Celular.ps1')
+  $a = Send-AlertaCelular
+  Write-Host "  alerta no celular: $a"
+} catch {
+  Write-Host "  alerta no celular falhou: $($_.Exception.Message)"
 }
