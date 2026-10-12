@@ -7332,6 +7332,15 @@ function Renewar-TokenEmMassa([switch]$SoFilmes) {
   Write-Estado $stFinal $msgFinal $updTotal $encTotal $falTotal $itensTodas ''
   # Registro no quadro compartilhado: "a ultima atualizacao foi no PC".
   try { $null = Set-Atualizacao -Quem 'PC' -Status $stFinal -Msg $msgFinal } catch { }
+  # Alerta no celular: avisa que a rodada acabou, quantos links foram
+  # trocados e se o NoviPlay esta firme. Se o alerta falhar, a rodada
+  # NAO e interrompida - e so uma notificacao.
+  try {
+    . (Join-Path $NoviplayDir 'Alerta_Celular.ps1')
+    $null = Send-AlertaCelular
+  } catch {
+    [IO.File]::AppendAllText($logPath, "[$ts] Alerta no celular falhou: $($_.Exception.Message)`r`n")
+  }
   if ($watchdog) { try { Stop-Job $watchdog -ErrorAction SilentlyContinue; Remove-Job $watchdog -Force -ErrorAction SilentlyContinue } catch { } }
   [Environment]::Exit(0)
 }
