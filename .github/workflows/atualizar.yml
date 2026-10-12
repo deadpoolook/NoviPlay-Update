@@ -30,29 +30,48 @@ jobs:
     # Margem de seguranca: a busca completa de catalogo leva ~38 min.
     timeout-minutes: 90
 
+    # ------------------------------------------------------------
+    # Os Segredos sao passados AQUI, no nivel do job, para valerem
+    # em todos os passos. (Neste repositorio o GitHub nao estava
+    # injetando os segredos como variavel de ambiente sozinho;
+    # so apareciam via ${{ secrets.X }} - por isso o bloco abaixo.)
+    # ------------------------------------------------------------
+    env:
+      NOVIPLAY_GITHUB_TOKEN: ${{ secrets.NOVIPLAY_GITHUB_TOKEN }}
+      NOVIPLAY_GIST_ID:      ${{ secrets.NOVIPLAY_GIST_ID }}
+      NOVIPLAY_FS_BASE:      ${{ secrets.NOVIPLAY_FS_BASE }}
+      NOVIPLAY_FENIX_BASE:   ${{ secrets.NOVIPLAY_FENIX_BASE }}
+      NOVIPLAY_MTV_BASE:     ${{ secrets.NOVIPLAY_MTV_BASE }}
+      NOVIPLAY_PALDI_HOST:   ${{ secrets.NOVIPLAY_PALDI_HOST }}
+      NOVIPLAY_PALDI_USER:   ${{ secrets.NOVIPLAY_PALDI_USER }}
+      NOVIPLAY_PALDI_PASS:   ${{ secrets.NOVIPLAY_PALDI_PASS }}
+
     steps:
       - name: Pegar o codigo
         uses: actions/checkout@v4
 
-      - name: Mostrar o que vamos usar
+      - name: Conferir se os segredos chegaram
         run: |
-          Write-Host "GitHub Actions: $${{ github.repository }}"
+          Write-Host "GitHub Actions: ${{ github.repository }}"
           Write-Host "Rodada iniciada em: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+          $faltando = @()
+          foreach ($n in @('NOVIPLAY_GITHUB_TOKEN','NOVIPLAY_GIST_ID','NOVIPLAY_FS_BASE','NOVIPLAY_PALDI_HOST')) {
+            $v = [Environment]::GetEnvironmentVariable($n)
+            if (-not $v) { $faltando += $n }
+          }
+          if ($faltando.Count -gt 0) {
+            Write-Host "FALTANDO SEGREDOS: $($faltando -join ', ')"
+            Write-Host "A rodada sera interrompida para NAO gravar nada por cima."
+            exit 1
+          }
+          Write-Host "Todos os segredos presentes. Seguindo."
 
       - name: Preparar os arquivos de configuracao
-        # Os Segredos viram variaveis de ambiente. O script le essas
-        # variaveis e NAO precisa de nenhuma senha escrita no codigo.
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path "$env:GITHUB_WORKSPACE\dados" | Out-Null
-
           # O token do GitHub vai para o arquivo que o script ja usa.
-          if ($env:NOVIPLAY_GITHUB_TOKEN) {
-            $env:NOVIPLAY_GITHUB_TOKEN | Out-File -FilePath "$env:GITHUB_WORKSPACE\github.np" -Encoding utf8 -NoNewline
-            Write-Host "github.np criado a partir do segredo."
-          } else {
-            Write-Host "AVISO: segredo NOVIPLAY_GITHUB_TOKEN nao definido."
-          }
+          $env:NOVIPLAY_GITHUB_TOKEN | Out-File -FilePath "$env:GITHUB_WORKSPACE\github.np" -Encoding utf8 -NoNewline
+          Write-Host "github.np criado a partir do segredo."
 
           # Endereco das APIs e login do Paldi vem dos Segredos.
           $linhas = @(
