@@ -48,7 +48,7 @@ jobs:
 
           # O token do GitHub vai para o arquivo que o script ja usa.
           if ($env:NOVIPLAY_GITHUB_TOKEN) {
-            $token | Out-File -FilePath "$env:GITHUB_WORKSPACE\github.np" -Encoding utf8 -NoNewline
+            $env:NOVIPLAY_GITHUB_TOKEN | Out-File -FilePath "$env:GITHUB_WORKSPACE\github.np" -Encoding utf8 -NoNewline
             Write-Host "github.np criado a partir do segredo."
           } else {
             Write-Host "AVISO: segredo NOVIPLAY_GITHUB_TOKEN nao definido."
