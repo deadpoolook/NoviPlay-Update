@@ -1,0 +1,75 @@
+# ============================================================
+# O QUE NAO PODE IR PARA O REPOSITORIO PUBLICO
+# --------------------------------------------------------
+# Estes arquivos tem senha, token ou sao os seus dados do catalogo.
+# Se subirem, quem clonar o repositorio ve tudo. Esta lista impede.
+# ============================================================
+
+# --- segredos: nao publicar nunca ---
+github.np
+github_repo.np
+config.np
+*.pfx
+*.cer
+*.jks
+
+# --- seus dados do catalogo: ficam no gist secreto ---
+channels.np*
+froststream.np*
+fenix.np*
+futuro.np*
+tvbox.np*
+channels.mtv*
+aviso.np*
+aviso_auto*.np
+destaques.np
+users.np
+autologin.np
+login.np
+titulo_trad.np
+ultimos_ok.txt*
+series_frias*
+prov_travado.txt*
+logos_index.json
+sinopse*
+*.m3u
+*.m3u8
+
+# --- logs e estado ---
+*.log
+autoupd.status.json
+ultima_busca_completa.txt
+*.bak
+*.bak_*
+*.old
+*.zerado
+*.orig
+*.mojibake
+*.mp4
+*.mkv
+vlc/
+logs/
+
+# --- sobe grandes demais / irrelevantes ---
+ENVIAR-PC/
+PRONTO-PRA-ENVIO/
+projeto/apk_work/
+projeto/pc_build/
+preview_springfever/
+Backup*/
+Canais Abertos/
+PC/
+capas/
+logos/
+*.exe
+*.apk
+*.zip
+*.png
+*.jpg
+fundo_painel.png
+noticia.jpg
+
+# --- sistema ---
+Thumbs.db
+desktop.ini
+.DS_Store
