@@ -4080,9 +4080,12 @@ $LblUltima.Text = 'Ultima atualizacao automatica: nenhuma ainda'
 
 $LblSinc = New-Object System.Windows.Forms.Label
 $LblSinc.ForeColor = $ColorDim
-$LblSinc.AutoSize = $true
+# Altura fixa de 2 linhas. Se deixasse no automatico, um texto mais longo
+# quebraria em 3 linhas e empurraria a lista de falhas por cima das abas.
+$LblSinc.AutoSize = $false
+$LblSinc.Size = New-Object System.Drawing.Size(760, 40)
 $LblSinc.Font = New-Object System.Drawing.Font('Segoe UI', 9, [Drawing.FontStyle]::Bold)
-$LblSinc.Location = New-Object System.Drawing.Point(16, 106)
+$LblSinc.Location = New-Object System.Drawing.Point(16, 104)
 $LblSinc.Text = 'Ultima: consultando quem atualizou...'
 
 $LblFalhasCap = New-Object System.Windows.Forms.Label
@@ -4102,7 +4105,7 @@ $LstFalhas.DisplayMember = 'Display'
 
 $BtnFalha = New-Object System.Windows.Forms.Button
 $BtnFalha.Text = 'TENTAR ATUALIZAR SELECIONADO'
-$BtnFalha.Location = New-Object System.Drawing.Point(584, 128)
+$BtnFalha.Location = New-Object System.Drawing.Point(584, 170)
 $BtnFalha.Size = New-Object System.Drawing.Size(140, 58)
 $BtnFalha.BackColor = $ColorGreen
 $BtnFalha.ForeColor = [Drawing.Color]::White
@@ -4110,7 +4113,7 @@ $BtnFalha.FlatStyle = 'Flat'
 $BtnFalha.Enabled = $false
 
 $TabCtl = New-Object System.Windows.Forms.TabControl
-$TabCtl.Location = New-Object System.Drawing.Point(16, 196)
+$TabCtl.Location = New-Object System.Drawing.Point(16, 236)
 $TabCtl.Size = New-Object System.Drawing.Size(708, 508)
 $TabCtl.Font = New-Object System.Drawing.Font('Segoe UI', 10, [Drawing.FontStyle]::Bold)
 $TabCtl.BackColor = $ColorBg
@@ -5451,6 +5454,10 @@ function Aplica-Layout {
     $larg = [int]($cw - ($marg * 2))
 
     if ($LblSub) { $LblSub.Width = $larg }
+    # A barra de sincronizacao acompanha a largura da janela, senao o texto
+    # "quem atualizou" some quando a janela e estreita.
+    if ($LblSinc) { $LblSinc.Width = $larg }
+    if ($LblFalhasCap) { $LblFalhasCap.Width = $larg }
     #atencao: New-Object Point(x, y - 30) quebra neste PowerShell (o virgula
     #monta o array antes da subtracao). Por isso a conta vem antes.
     $footY = [int]($ch - 30)
@@ -5464,7 +5471,10 @@ function Aplica-Layout {
     $btnY = [int]$LstFalhas.Top
     if ($BtnFalha) { $BtnFalha.Location = New-Object System.Drawing.Point($btnX, $btnY) }
 
-    $topoTabs = 196
+    # As abas comecam abaixo da lista de falhas. A barra de sincronizacao
+# (que diz quem atualizou) ocupa duas linhas, por isso a lista desceu e as
+# abas tiveram de descer junto - se nao descerem, a lista tapa as abas.
+$topoTabs = 236
     if ($TabCtl) {
       $tabH = [int][Math]::Max(200, [int]($ch - $topoTabs - 40))
       $TabCtl.Location = New-Object System.Drawing.Point($marg, $topoTabs)
